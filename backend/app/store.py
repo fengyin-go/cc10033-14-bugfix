@@ -325,6 +325,57 @@ class Store:
         self.recovery = FailureRecovery()
         self.snapshot = SnapshotEngine()
         self.artifacts = ArtifactRegistry()
+        # 源事实版本登记：每次发布/更正发布都会产生一个新版本，
+        # 汇总字段定义校验与星型查询选源都按同一个版本核对维度和粒度。
+        self.fact_versions: dict[str, dict[str, Any]] = {}
+        self._bootstrap_fact_versions()
+
+    def _bootstrap_fact_versions(self) -> None:
+        """种子事实按其当前内容登记为第 1 版，作为后续校验的基准版本。"""
+        for row in self._tables.get("fact_design", []):
+            fact_name = str(row.get("事实名称", "")).strip()
+            if not fact_name:
+                continue
+            self.fact_versions[fact_name] = {
+                "fact_name": fact_name,
+                "version": 1,
+                "related_dims": str(row.get("关联维度", "")),
+                "grain": str(row.get("粒度声明", "")),
+                "partition_field": str(row.get("分区字段", "")),
+                "published_at": datetime.now(timezone.utc).isoformat(),
+                "entry_id": row.get("id"),
+            }
+
+    def register_fact_version(
+        self,
+        fact_name: str,
+        *,
+        related_dims: str,
+        grain: str,
+        partition_field: str = "",
+        entry_id: int | None = None,
+    ) -> dict[str, Any]:
+        """登记一个新的源事实版本（内容变更即升版），返回新版本信息。"""
+        previous = self.fact_versions.get(fact_name)
+        version = int(previous["version"]) + 1 if previous else 1
+        record = {
+            "fact_name": fact_name,
+            "version": version,
+            "related_dims": related_dims,
+            "grain": grain,
+            "partition_field": partition_field,
+            "published_at": datetime.now(timezone.utc).isoformat(),
+            "entry_id": entry_id,
+        }
+        self.fact_versions[fact_name] = record
+        return dict(record)
+
+    def get_fact_version(self, fact_name: str) -> dict[str, Any] | None:
+        record = self.fact_versions.get(str(fact_name).strip())
+        return dict(record) if record else None
+
+    def list_fact_versions(self) -> list[dict[str, Any]]:
+        return [dict(record) for record in self.fact_versions.values()]
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)

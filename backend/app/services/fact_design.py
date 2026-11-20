@@ -89,6 +89,16 @@ class FactDesignService(BaseModuleService):
             if not dim_validation["valid"]:
                 return None, dim_validation["message"]
 
+            # 登记新的源事实版本：每次发布都按当前条目内容升版，
+            # 下游汇总定义与星型查询都按这同一个版本核对维度和粒度。
+            new_version = store.register_fact_version(
+                entry["事实名称"],
+                related_dims=entry.get("关联维度", ""),
+                grain=entry.get("粒度声明", ""),
+                partition_field=entry.get("分区字段", ""),
+                entry_id=entry.get("id"),
+            )
+
             store.channel.publish("fact.published", {
                 "fact_name": entry["事实名称"],
                 "business_process": entry["业务过程"],
@@ -96,8 +106,14 @@ class FactDesignService(BaseModuleService):
                 "related_dims": entry.get("关联维度", ""),
                 "measures": entry.get("度量字段", ""),
                 "update_mode": entry.get("更新模式"),
+                "fact_version": new_version["version"],
                 "entry_id": entry["id"],
             })
+
+            # 源事实更正后按新版本重新核对已有汇总定义，
+            # 被删掉的分组字段会让对应汇总定义失效并收口适用日期。
+            from app.services.agg_summary import revalidate_summaries_for_fact
+            revalidate_summaries_for_fact(entry["事实名称"], new_version)
 
             # 自动建议度量配置
             _suggest_measures(entry)

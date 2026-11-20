@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -12,7 +14,17 @@ from app.config import settings
 from app.routers import ROUTERS
 from app.store import store
 
-app = FastAPI(title="维度建模开发中心", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # 启动时给种子汇总补盖校验戳记，保证两个入口回查到的是同一份字段定义
+    from app.services.agg_summary import stamp_legacy_seed_summaries
+
+    stamp_legacy_seed_summaries()
+    yield
+
+
+app = FastAPI(title="维度建模开发中心", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

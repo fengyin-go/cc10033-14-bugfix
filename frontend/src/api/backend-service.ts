@@ -1,6 +1,13 @@
 import { request } from './client'
 import { moduleMeta } from '@/data/modules'
-import type { ActionResult, EntryRow, OverviewResult, PageResult } from '@/data/types'
+import type {
+  ActionResult,
+  EntryRow,
+  OverviewResult,
+  PageResult,
+  QueryPlan,
+  SummaryDefinition,
+} from '@/data/types'
 
 export { moduleMeta }
 
@@ -57,5 +64,19 @@ export async function downloadEntries(
 export async function loadOverview(): Promise<OverviewResult> {
   const response = await request('/api/overview')
   if (!response.ok) throw new Error('运营概览读取失败')
+  return await response.json()
+}
+
+/** 回查同一份汇总字段定义：汇总登记页与星型查询入口共用 */
+export async function loadSummaryDefinition(entryId: number): Promise<SummaryDefinition> {
+  const response = await request(`/api/agg_summary/summary-definition?entry_id=${entryId}`)
+  if (!response.ok) throw new Error('汇总字段定义读取失败')
+  return await response.json()
+}
+
+/** 星型查询选源：返回实际数据来源、适用日期与回退时扫描的事实分区 */
+export async function loadQueryPlan(entryId: number): Promise<QueryPlan> {
+  const response = await request(`/api/star_query/query-plan?entry_id=${entryId}`)
+  if (!response.ok) throw new Error('星型查询选源计划读取失败')
   return await response.json()
 }

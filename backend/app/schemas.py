@@ -19,6 +19,12 @@ class ActionResult(BaseModel):
     ok: bool
     message: str
     entry: dict[str, Any] | None = None
+    # 领域校验失败时的机器可读错误码（如 DIM_MISSING）
+    code: str | None = None
+    # 结构化明细：不能上卷的维度、源事实版本等
+    details: dict[str, Any] | None = None
+    # 提交失败时原样回显的输入，前端据此保留表单内容，不清空
+    retained: dict[str, Any] | None = None
 
 
 class EntryPayload(BaseModel):
